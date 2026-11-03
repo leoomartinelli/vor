@@ -1,0 +1,44 @@
+name: Build Linux
+
+# Gera o AppImage e o .deb (x64) e publica como artefato da execução.
+on:
+  push:
+    branches: ["main", "ci/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Dependências de build (uiohook-napi, X11)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libx11-dev libxtst-dev libxt-dev libxinerama-dev libxrandr-dev libxkbcommon-dev libxkbcommon-x11-dev libx11-xcb-dev libxkbfile-dev
+
+      - run: npm ci
+      - run: npm run test:platform-unix
+
+      - name: Build (vite + electron-builder, sem publicar)
+        run: |
+          npm run build
+          node scripts/run-electron-builder.mjs --linux AppImage deb --x64 --publish never
+        env:
+          ZENITH_BUILD_OUTPUT: build-out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vor-linux-x64
+          path: |
+            build-out/*.AppImage
+            build-out/*.deb
+          if-no-files-found: error
